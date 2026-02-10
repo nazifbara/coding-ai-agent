@@ -20,40 +20,53 @@ def main():
     client = genai.Client(api_key=api_key)
 
     messages = [types.Content(role="user", parts=[types.Part(text=args.user_prompt)])]
-    content = client.models.generate_content(
-        model="gemini-2.5-flash",
-        contents=messages,
-        config=types.GenerateContentConfig(
-            tools=[available_functions],
-            system_instruction=system_prompt
+
+    for _ in range(20): 
+        content = client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=messages,
+            config=types.GenerateContentConfig(
+                tools=[available_functions],
+                system_instruction=system_prompt
+            )
         )
-    )
+        if content.candidates:
+            for candidate in content.candidates:
+                messages.append(candidate.content)
 
-    usage = content.usage_metadata
-    if not usage:
-        raise RuntimeError("Failure in the gemini API request")
-    elif args.verbose:
-        print(f"User prompt: {args.user_prompt}")
-        print(f"Prompt tokens: {usage.prompt_token_count}")
-        print(f"Response tokens: {usage.candidates_token_count}")
+        usage = content.usage_metadata
+        if not usage:
+            raise RuntimeError("Failure in the gemini API request")
+        elif args.verbose:
+            print(f"User prompt: {args.user_prompt}")
+            print(f"Prompt tokens: {usage.prompt_token_count}")
+            print(f"Response tokens: {usage.candidates_token_count}")
 
-    print("Response:")
-    function_results = []
-    if content.function_calls:
-        for function_call in content.function_calls:
-            function_call_result = call_function(function_call, args.verbose)
+        print("Response:")
+        function_results = []
+        if content.function_calls:
+            for function_call in content.function_calls:
+                function_call_result = call_function(function_call, args.verbose)
 
-            if function_call_result.parts == None:
-                raise Exception("Error getting the function call result")
-            if function_call_result.parts[0].function_response == None:
-                raise Exception("None response returned by the function call")
-            function_results.append(function_call_result.parts[0])
+                if function_call_result.parts == None:
+                    raise Exception("Error getting the function call result")
+                if function_call_result.parts[0].function_response == None:
+                    raise Exception("None response returned by the function call")
+                function_results.append(function_call_result.parts[0])
 
-            if args.verbose:
-                print(f"-> {function_call_result.parts[0].function_response.response}")
-            
-    else:
-        print(content.text)
+                if args.verbose:
+                    print(f"-> {function_call_result.parts[0].function_response.response}")
+                
+            messages.append(types.Content(role="user", parts=function_results))
+
+        else:
+            print(content.text)
+            return
+    
+    print("Agent exceeded the maximun number of iterations")
+    exit(1)
+        
+
         
 
 
